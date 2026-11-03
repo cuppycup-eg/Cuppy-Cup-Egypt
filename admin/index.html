@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cuppy Cup - Admin</title>
+<style>
+body{font-family:Arial;background:#fff7fb;color:#55404b;padding:20px;max-width:650px;margin:auto}
+h1{color:#bd7899}input,button{padding:12px;margin:6px 0;border:1px solid #e8c7d8;border-radius:10px;width:100%;box-sizing:border-box}
+button{background:#e9b9d0;color:#503747;font-weight:bold;cursor:pointer}
+.card{background:white;padding:12px;margin:10px 0;border-radius:12px}
+small{color:#765}
+</style>
+</head>
+<body>
+<h1>🎀 Cuppy Cup Admin</h1>
+<p>لوحة إدارة المنتجات والتصميم</p>
+
+<div class="card">
+<h3>ربط الموقع</h3>
+<input id="token" type="password" placeholder="الصقي GitHub Token هنا">
+<button onclick="connect()">اتصال</button>
+<small id="status">مفتاح GitHub لا ترسليه لأي شخص.</small>
+</div>
+
+<div class="card">
+<h3>إضافة منتج</h3>
+<input id="name" placeholder="اسم المنتج">
+<input id="price" type="number" placeholder="السعر">
+<input id="stock" type="number" placeholder="الكمية المتاحة">
+<input id="image" placeholder="رابط صورة المنتج">
+<button onclick="addProduct()">إضافة المنتج</button>
+</div>
+
+<div class="card">
+<h3>المنتجات الحالية</h3>
+<div id="products">اتصلي أولاً لعرض المنتجات.</div>
+</div>
+
+<div class="card">
+<h3>ألوان الموقع</h3>
+<label>الوردي</label><input id="pink" type="color" value="#F8C8DC">
+<label>الأزرق</label><input id="blue" type="color" value="#BDE0FE">
+<label>الخلفية</label><input id="bg" type="color" value="#FFF8FC">
+<button onclick="saveDesign()">حفظ الألوان</button>
+</div>
+
+<script>
+const owner="cuppycup-eg";
+const repo="Cuppy-Cup-Egypt";
+let token="";
+let items=[];
+
+function connect(){
+ token=document.getElementById("token").value.trim();
+ if(!token){alert("أدخلي المفتاح أولاً");return}
+ sessionStorage.setItem("cc_token",token);
+ loadProducts();
+ loadDesign();
+}
+function headers(){
+ return {"Authorization":"Bearer "+token,"Accept":"application/vnd.github+json"};
+}
+async function getFile(path){
+ let r=await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=main`,{headers:headers()});
+ if(!r.ok) throw Error("تعذر قراءة "+path);
+ return await r.json();
+}
+async function saveFile(path,obj){
+ let old=await getFile(path);
+ let content=btoa(unescape(encodeURIComponent(JSON.stringify(obj,null,2))));
+ let r=await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`,{
+ method:"PUT",
+ headers:{...headers(),"Content-Type":"application/json"},
+ body:JSON.stringify({message:"Update "+path,content:content,sha:old.sha,branch:"main"})
+ });
+ if(!r.ok) throw Error("فشل الحفظ. تأكدي من صلاحيات المفتاح.");
+}
+async function loadProducts(){
+ try{
+ let f=await getFile("products.json");
+ items=JSON.parse(decodeURIComponent(escape(atob(f.content.replace(/\n/g,""))))).products||[];
+ render();
+ document.getElementById("status").textContent="تم الاتصال بالموقع بنجاح ❤️";
+ }catch(e){alert(e.message)}
+}
+function render(){
+ let el=document.getElementById("products");
+ el.innerHTML="";
+ items.forEach((p,i)=>{
+ let d=document.createElement("div");d.className="card";
+ let t=document.createElement("b");t.textContent=p.name+" — "+p.price+" جنيه";
+ let s=document.createElement("p");s.textContent="الكمية: "+(p.stock||0);
+ let b=document.createElement("button");b.textContent="حذف";
+ b.onclick=async()=>{items.splice(i,1);await saveProducts()};
+ d.append(t,s,b);el.append(d);
+ });
+}
+async function addProduct(){
+ let name=document.getElementById("name").value.trim();
+ let price=Number(document.getElementById("price").value);
+ let stock=Number(document.getElementById("stock").value);
+ let image=document.getElementById("image").value.trim();
+ if(!name||!price){alert("اكتبي اسم المنتج والسعر");return}
+ items.push({name,price,stock,image});
+ await saveProducts();
+ ["name","price","stock","image"].forEach(id=>document.getElementById(id).value="");
+}
+async function saveProducts(){
+ try{await saveFile("products.json",{products:items});render();alert("تم حفظ المنتجات ❤️")}
+ catch(e){alert(e.message)}
+}
+async function loadDesign(){
+ try{
+ let f=await getFile("design.json");
+ let d=JSON.parse(decodeURIComponent(escape(atob(f.content.replace(/\n/g,"")))));
+ document.getElementById("pink").value=d.colors?.pink||"#F8C8DC";
+ document.getElementById("blue").value=d.colors?.blue||"#BDE0FE";
+ document.getElementById("bg").value=d.colors?.background||"#FFF8FC";
+ }catch(e){console.log(e)}
+}
+async function saveDesign(){
+ try{
+ await saveFile("design.json",{colors:{
+ pink:document.getElementById("pink").value,
+ blue:document.getElementById("blue").value,
+ background:document.getElementById("bg").value
+ },font:"Cairo"});
+ alert("تم حفظ الألوان ❤️");
+ }catch(e){alert(e.message)}
+}
+</script>
+</body>
+</html>
